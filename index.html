@@ -605,7 +605,8 @@
         // FUNÇÃO INIT MELHORADA
         async function init() {
             try {
-                console.log("Iniciando aplicação...");
+                console.log("=== INICIANDO APLICAÇÃO ===");
+                console.log("Firebase disponível?", !!window.firebaseDb);
                 
                 // Verificar se é página de acompanhamento
                 const params = new URLSearchParams(window.location.search);
@@ -639,6 +640,10 @@
                 document.getElementById('view-cliente').classList.remove('hidden');
                 
                 console.log("Aplicação inicializada com sucesso!");
+                console.log("=== DEBUG FINAL ===");
+                console.log("PRODS:", PRODS);
+                console.log("CATS:", CATS);
+                console.log("TAMANHOS:", TAMANHOS);
 
             } catch (error) {
                 console.error("Erro na inicialização:", error);
@@ -926,29 +931,80 @@
 
         async function loadData() {
             try {
+                console.log("Iniciando carregamento de dados...");
                 const { db, firestore } = getFirebaseRefs();
                 
                 // Carregar categorias
+                console.log("Carregando categorias...");
                 const catsSnap = await firestore.getDocs(firestore.collection(db, "categorias"));
                 CATS = catsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                console.log("Categorias carregadas:", CATS.length);
+                
+                // Se não houver categorias, criar algumas padrão
+                if (CATS.length === 0) {
+                    console.log("Criando categorias padrão...");
+                    const categoriasPadrao = [
+                        { nome: "Açaí", tipo: "montador", subtipo: "acai", ordem: 1 },
+                        { nome: "Frutas", tipo: "montador", subtipo: "fruta", ordem: 2 },
+                        { nome: "Coberturas", tipo: "montador", subtipo: "cobertura", ordem: 3 },
+                        { nome: "Adicionais", tipo: "montador", subtipo: "adicional", ordem: 4 },
+                        { nome: "Complementos", tipo: "categoria", ordem: 5 },
+                        { nome: "Combos", tipo: "categoria", ordem: 6 }
+                    ];
+                    
+                    for (const cat of categoriasPadrao) {
+                        await firestore.addDoc(firestore.collection(db, "categorias"), cat);
+                    }
+                    
+                    // Recarregar categorias
+                    const catsSnap2 = await firestore.getDocs(firestore.collection(db, "categorias"));
+                    CATS = catsSnap2.docs.map(d => ({id: d.id, ...d.data()}));
+                    console.log("Categorias criadas e recarregadas:", CATS.length);
+                }
                 
                 // Carregar produtos
+                console.log("Carregando produtos...");
                 const prodsSnap = await firestore.getDocs(firestore.collection(db, "produtos"));
                 PRODS = prodsSnap.docs.map(d => ({id: d.id, ...d.data()}));
                 
+                // CORREÇÃO: Garantir que todos os produtos tenham propriedades essenciais
+                PRODS = PRODS.map(p => ({
+                    ...p,
+                    nome: p.nome || "Produto sem nome",
+                    preco: Number(p.preco) || 0,
+                    disponivel: p.disponivel !== false, // true se não for false
+                    categoria_id: p.categoria_id || ""
+                }));
+                
+                console.log("Produtos carregados:", PRODS.length);
+                console.log("Exemplo de produtos:", PRODS.slice(0, 3));
+                
                 // Se não houver produtos, criar alguns padrão para açaíteria
                 if (PRODS.length === 0) {
-                    const categoriaAcaí = CATS.find(c => c.nome === "Açaí");
+                    console.log("Criando produtos padrão...");
+                    
+                    // Buscar IDs das categorias
+                    const categoriaAcai = CATS.find(c => c.nome === "Açaí");
                     const frutasCat = CATS.find(c => c.nome === "Frutas");
                     const coberturasCat = CATS.find(c => c.nome === "Coberturas");
                     const adicionaisCat = CATS.find(c => c.nome === "Adicionais");
                     const complementosCat = CATS.find(c => c.nome === "Complementos");
+                    const combosCat = CATS.find(c => c.nome === "Combos");
+                    
+                    console.log("IDs das categorias encontradas:", {
+                        acai: categoriaAcai?.id,
+                        frutas: frutasCat?.id,
+                        coberturas: coberturasCat?.id,
+                        adicionais: adicionaisCat?.id,
+                        complementos: complementosCat?.id,
+                        combos: combosCat?.id
+                    });
                     
                     const produtosPadrao = [
                         // Tipos de Açaí
-                        { nome: "Açaí Tradicional", descricao: "Açaí puro", preco: 0, categoria_id: categoriaAcaí?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true },
-                        { nome: "Açaí com Banana", descricao: "Açaí com banana", preco: 2.00, categoria_id: categoriaAcaí?.id, imagem_url: "https://images.unsplash.com/photo-1595708684082-a173bb3a06c5?w=400", disponivel: true },
-                        { nome: "Açaí com Granola", descricao: "Açaí com granola", preco: 3.00, categoria_id: categoriaAcaí?.id, imagem_url: "", disponivel: true },
+                        { nome: "Açaí Tradicional", descricao: "Açaí puro", preco: 0, categoria_id: categoriaAcai?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true },
+                        { nome: "Açaí com Banana", descricao: "Açaí com banana", preco: 2.00, categoria_id: categoriaAcai?.id, imagem_url: "", disponivel: true },
+                        { nome: "Açaí com Granola", descricao: "Açaí com granola", preco: 3.00, categoria_id: categoriaAcai?.id, imagem_url: "", disponivel: true },
                         
                         // Frutas
                         { nome: "Banana", descricao: "", preco: 2.00, categoria_id: frutasCat?.id, imagem_url: "", disponivel: true },
@@ -960,39 +1016,104 @@
                         { nome: "Calda de Chocolate", descricao: "", preco: 3.00, categoria_id: coberturasCat?.id, imagem_url: "", disponivel: true },
                         { nome: "Calda de Morango", descricao: "", preco: 3.00, categoria_id: coberturasCat?.id, imagem_url: "", disponivel: true },
                         
-                        // Complementos
-                        { nome: "Granola", descricao: "Pacote 50g", preco: 4.00, categoria_id: complementosCat?.id, imagem_url: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400", disponivel: true },
-                        { nome: "Paçoca", descricao: "Unidade", preco: 2.00, categoria_id: complementosCat?.id, imagem_url: "", disponivel: true },
+                        // Adicionais
+                        { nome: "Granola", descricao: "Pacote 50g", preco: 4.00, categoria_id: adicionaisCat?.id, imagem_url: "", disponivel: true },
+                        { nome: "Paçoca", descricao: "Unidade", preco: 2.00, categoria_id: adicionaisCat?.id, imagem_url: "", disponivel: true },
                         
-                        // Combos
+                        // Complementos
                         { nome: "Combo Duplo", descricao: "2 Açaís M + 2 Granolas", preco: 39.90, categoria_id: complementosCat?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true },
+                        
+                        // Produtos normais do cardápio
+                        { nome: "Açaí Copo M", descricao: "Açaí tradicional 500ml", preco: 18.90, categoria_id: complementosCat?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true },
+                        { nome: "Açaí Copo G", descricao: "Açaí tradicional 700ml", preco: 24.90, categoria_id: complementosCat?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true },
+                        { nome: "Açaí Bowl", descricao: "Açaí na tigela com frutas", preco: 29.90, categoria_id: complementosCat?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true },
+                        { nome: "Smoothie de Açaí", descricao: "Açaí batido com frutas", preco: 22.90, categoria_id: complementosCat?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true },
+                        { nome: "Açaí Energy", descricao: "Açaí com guaraná", preco: 26.90, categoria_id: complementosCat?.id, imagem_url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400", disponivel: true }
                     ];
                     
                     for (const prod of produtosPadrao) {
-                        await firestore.addDoc(firestore.collection(db, "produtos"), prod);
+                        if (prod.categoria_id) { // Só cria se tiver categoria_id válido
+                            await firestore.addDoc(firestore.collection(db, "produtos"), prod);
+                            console.log("Produto criado:", prod.nome);
+                        }
                     }
                     
                     // Recarregar produtos
                     const prodsSnap2 = await firestore.getDocs(firestore.collection(db, "produtos"));
                     PRODS = prodsSnap2.docs.map(d => ({id: d.id, ...d.data()}));
+                    
+                    // Aplicar correção aos produtos recém-criados
+                    PRODS = PRODS.map(p => ({
+                        ...p,
+                        nome: p.nome || "Produto sem nome",
+                        preco: Number(p.preco) || 0,
+                        disponivel: p.disponivel !== false,
+                        categoria_id: p.categoria_id || ""
+                    }));
+                    
+                    console.log("Produtos criados e recarregados:", PRODS.length);
                 }
                 
                 // Carregar cupons
+                console.log("Carregando cupons...");
                 const cuponsSnap = await firestore.getDocs(firestore.collection(db, "cupons"));
                 CUPONS = cuponsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                console.log("Cupons carregados:", CUPONS.length);
                 
                 // Carregar tamanhos
                 await carregarTamanhos();
                 
                 // Ordenar categorias
                 CATS.sort((a, b) => (a.ordem || 999) - (b.ordem || 999));
+                console.log("Categorias ordenadas:", CATS.map(c => c.nome));
                 
                 // Renderizar
+                console.log("Renderizando filtros e cardápio...");
                 renderFiltros();
                 renderCardapio('todos');
                 
+                console.log("✅ Dados carregados com sucesso!");
+                console.log("Resumo:", {
+                    categorias: CATS.length,
+                    produtos: PRODS.length,
+                    cupons: CUPONS.length,
+                    tamanhos: TAMANHOS.length
+                });
+                
+                // TESTE TEMPORÁRIO - Se ainda não houver produtos para mostrar
+                const produtosVisiveis = PRODS.filter(p => {
+                    const categoria = CATS.find(c => c.id === p.categoria_id);
+                    const isCategoriaEspecial = categoria?.nome === "Açaí" || categoria?.nome === "Frutas" || categoria?.nome === "Coberturas" || categoria?.nome === "Adicionais";
+                    return !isCategoriaEspecial && p.disponivel !== false;
+                });
+                
+                if (produtosVisiveis.length === 0 && PRODS.length > 0) {
+                    console.log("AVISO: Produtos estão carregados mas nenhum é visível para o cliente.");
+                    console.log("Produtos disponíveis:", PRODS.map(p => ({
+                        nome: p.nome,
+                        categoria: CATS.find(c => c.id === p.categoria_id)?.nome,
+                        disponivel: p.disponivel,
+                        preco: p.preco
+                    })));
+                }
+                
             } catch (error) {
-                console.error("Erro ao carregar dados:", error);
+                console.error("❌ Erro ao carregar dados:", error);
+                console.error("Stack trace:", error.stack);
+                
+                // Mostrar erro para o usuário
+                const cardapioDiv = document.getElementById('cardapio');
+                if (cardapioDiv) {
+                    cardapioDiv.innerHTML = `
+                        <div class="text-center py-10">
+                            <div class="text-4xl mb-4">⚠️</div>
+                            <h3 class="text-lg font-bold text-red-600 mb-2">Erro ao carregar cardápio</h3>
+                            <p class="text-gray-600 mb-4">${error.message}</p>
+                            <button onclick="location.reload()" class="bg-purple-600 text-white px-4 py-2 rounded-lg">
+                                Tentar Novamente
+                            </button>
+                        </div>`;
+                }
             }
         }
 
@@ -1207,63 +1328,122 @@
         // ==================== FUNÇÕES DE INTERFACE CLIENTE ====================
 
         function renderFiltros() {
+            console.log("Renderizando filtros...");
             const div = document.getElementById('filtros');
-            if (!div) return;
+            if (!div) {
+                console.error("Elemento #filtros não encontrado!");
+                return;
+            }
             
-            // Filtrar apenas categorias principais (não do montador)
-            const catsPrincipais = CATS.filter(c => !c.tipo || c.tipo === 'categoria');
-            
-            let html = `<button onclick="renderCardapio('todos')" class="whitespace-nowrap px-4 py-2 text-[10px] font-black uppercase border rounded-full ${curCat === 'todos' ? 'cat-active' : 'border-purple-200 text-gray-400'}">Todos</button>`;
-            
-            catsPrincipais.forEach(c => {
+            // CORREÇÃO: Mostrar todas as categorias que têm produtos, incluindo algumas do montador
+            const catsVisiveis = CATS.filter(c => {
+                // Não mostrar categorias especiais do montador como filtros
+                const isCategoriaEspecial = c.nome === "Açaí" || c.nome === "Frutas" || c.nome === "Coberturas" || c.nome === "Adicionais";
+                if (isCategoriaEspecial) return false;
+                
                 // Verificar se há produtos nesta categoria
                 const produtosNaCategoria = PRODS.filter(p => 
                     p.categoria_id === c.id && 
-                    p.disponivel !== false && 
-                    p.preco > 0
-                ).length;
+                    p.disponivel !== false
+                ).length > 0;
                 
-                if (produtosNaCategoria > 0) {
-                    html += `<button onclick="renderCardapio('${c.id}')" class="whitespace-nowrap px-4 py-2 text-[10px] font-black uppercase border rounded-full ${curCat === c.id ? 'cat-active' : 'border-purple-200 text-gray-400'}">${c.nome}</button>`;
-                }
+                return produtosNaCategoria;
+            });
+            
+            console.log("Categorias visíveis:", catsVisiveis.map(c => c.nome));
+            
+            let html = `<button onclick="renderCardapio('todos')" class="whitespace-nowrap px-4 py-2 text-[10px] font-black uppercase border rounded-full ${curCat === 'todos' ? 'cat-active' : 'border-purple-200 text-gray-400'}">Todos</button>`;
+            
+            catsVisiveis.forEach(c => {
+                html += `<button onclick="renderCardapio('${c.id}')" class="whitespace-nowrap px-4 py-2 text-[10px] font-black uppercase border rounded-full ${curCat === c.id ? 'cat-active' : 'border-purple-200 text-gray-400'}">${c.nome}</button>`;
             });
             
             div.innerHTML = html;
+            console.log("Filtros renderizados!");
         }
 
         function renderCardapio(cid) {
+            console.log("Renderizando cardápio para categoria:", cid);
+            console.log("Total de produtos:", PRODS.length);
+            
             curCat = cid;
             renderFiltros();
             
             const div = document.getElementById('cardapio');
-            if (!div) return;
+            if (!div) {
+                console.error("Elemento #cardapio não encontrado!");
+                return;
+            }
             
-            // FILTRO CORRIGIDO: Incluir produtos de qualquer categoria (exceto categorias do montador)
-            const categoriasMontadorIds = CATS.filter(c => c.tipo === 'montador').map(c => c.id);
+            // CORREÇÃO PRINCIPAL: Mostrar produtos disponíveis com preço >= 0 (inclui 0)
+            // Mostrar produtos que estejam disponíveis e que NÃO sejam das categorias especiais do montador
+            
+            // Identificar categorias especiais do montador
+            const catsEspeciais = CATS.filter(c => 
+                c.nome === "Açaí" || c.nome === "Frutas" || c.nome === "Coberturas" || c.nome === "Adicionais"
+            ).map(c => c.id);
+            
+            console.log("Categorias especiais (não mostrar):", catsEspeciais);
+            
             const filtrados = cid === 'todos' 
-                ? PRODS.filter(p => !categoriasMontadorIds.includes(p.categoria_id) && p.disponivel !== false && p.preco > 0)
-                : PRODS.filter(p => p.categoria_id === cid && p.disponivel !== false && p.preco > 0);
+                ? PRODS.filter(p => {
+                    // Para "todos", excluir produtos das categorias especiais do montador
+                    const isCategoriaEspecial = catsEspeciais.includes(p.categoria_id);
+                    const isDisponivel = p.disponivel !== false;
+                    
+                    return !isCategoriaEspecial && isDisponivel;
+                })
+                : PRODS.filter(p => {
+                    // Para uma categoria específica, mostrar produtos dessa categoria
+                    const isCategoriaCorreta = p.categoria_id === cid;
+                    const isDisponivel = p.disponivel !== false;
+                    
+                    return isCategoriaCorreta && isDisponivel;
+                });
+            
+            console.log("Produtos filtrados para mostrar:", filtrados.length);
+            console.log("Produtos filtrados:", filtrados.map(p => ({
+                nome: p.nome, 
+                categoria: CATS.find(c => c.id === p.categoria_id)?.nome,
+                preco: p.preco,
+                disponivel: p.disponivel
+            })));
             
             if (filtrados.length === 0) {
-                div.innerHTML = `<div class="text-center py-10 text-gray-400 text-sm">Nenhum produto disponível nesta categoria.</div>`;
+                div.innerHTML = `
+                    <div class="text-center py-10">
+                        <div class="text-4xl mb-4">🍦</div>
+                        <h3 class="text-lg font-bold text-gray-800 mb-2">Nenhum produto disponível</h3>
+                        <p class="text-gray-400 text-sm">
+                            ${cid === 'todos' 
+                                ? 'Não há produtos no cardápio no momento.' 
+                                : 'Não há produtos nesta categoria no momento.'}
+                        </p>
+                        ${isAdmin ? 
+                            `<div class="mt-4">
+                                <button onclick="novoProduto()" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm">
+                                    + Adicionar Produto
+                                </button>
+                            </div>` : ''
+                        }
+                    </div>`;
                 return;
             }
             
             let html = '';
             filtrados.forEach(p => {
                 const categoria = CATS.find(c => c.id === p.categoria_id);
-                const corCategoria = categoria?.nome === "Açaí" ? "bg-purple-100 text-purple-700" : 
-                                   categoria?.nome === "Complementos" ? "bg-green-100 text-green-700" : 
-                                   categoria?.nome === "Frutas" ? "bg-pink-100 text-pink-700" :
-                                   categoria?.nome === "Coberturas" ? "bg-yellow-100 text-yellow-700" :
-                                   categoria?.nome === "Adicionais" ? "bg-blue-100 text-blue-700" :
+                const corCategoria = categoria?.nome === "Complementos" ? "bg-green-100 text-green-700" : 
+                                   categoria?.nome === "Combos" ? "bg-blue-100 text-blue-700" :
                                    "bg-gray-100 text-gray-700";
                 
                 html += `
                 <div class="bg-white rounded-[20px] acai-shadow p-4 flex gap-4 border border-purple-100 items-center clickable" onclick="abrirDetalhesProduto('${p.id}')">
                     <div class="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0">
-                        <img src="${p.imagem_url || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&auto=format&fit=crop'}" class="w-full h-full object-cover" 
-                             onerror="this.src='https://cdn-icons-png.flaticon.com/512/3075/3075977.png'">
+                        <img src="${p.imagem_url || 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&auto=format&fit=crop'}" 
+                             class="w-full h-full object-cover" 
+                             onerror="this.src='https://cdn-icons-png.flaticon.com/512/3075/3075977.png'"
+                             alt="${p.nome}">
                     </div>
                     <div class="flex-1">
                         <div class="flex justify-between items-start">
@@ -1273,13 +1453,17 @@
                         <p class="text-[9px] text-gray-400 line-clamp-1 mb-1">${p.descricao || ''}</p>
                         <div class="flex justify-between items-center mt-2">
                             <span class="text-purple-600 font-black text-md">R$ ${Number(p.preco || 0).toFixed(2).replace('.',',')}</span>
-                            <button onclick="event.stopPropagation(); addCart('${p.id}')" class="bg-purple-500 text-white w-8 h-8 rounded-xl font-black text-xl shadow active:scale-95 transition hover:bg-purple-600">+</button>
+                            <button onclick="event.stopPropagation(); addCart('${p.id}')" 
+                                    class="bg-purple-500 text-white w-8 h-8 rounded-xl font-black text-xl shadow active:scale-95 transition hover:bg-purple-600">
+                                +
+                            </button>
                         </div>
                     </div>
                 </div>`;
             });
             
             div.innerHTML = html;
+            console.log("Cardápio renderizado com sucesso!");
         }
 
         function abrirDetalhesProduto(id) {
